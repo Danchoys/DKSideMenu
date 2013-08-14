@@ -1,0 +1,1 @@
+DKSideMenu is an easy-to-use component which allow to create iPad apps with a nice side menu, supporting both landscape and portrait content view controllers. It takes care of transitions between controllers, managing a UINavigationBar instances. It may be used with storyboards, providing two types of segues.
