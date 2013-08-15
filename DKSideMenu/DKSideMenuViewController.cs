@@ -1,3 +1,23 @@
+//  Created by Daniil Konoplev on 13-08-25.
+//  Copyright (c) 2011 Daniil Konoplev. All rights reserved.
+//
+//  Latest code can be found on GitHub: https://github.com/danchoys/DKSideMenu
+
+//  This file is part of DKSideMenu.
+//
+//	DKSideMenu is free software: you can redistribute it and/or modify
+//	it under the terms of the GNU General Public License as published by
+//	the Free Software Foundation, either version 3 of the License, or
+//	(at your option) any later version.
+//
+//	DKSideMenu is distributed in the hope that it will be useful,
+//	but WITHOUT ANY WARRANTY; without even the implied warranty of
+//	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//	GNU General Public License for more details.
+//
+//	You should have received a copy of the GNU General Public License
+//	along with DKSideMenu.  If not, see <http://www.gnu.org/licenses/>.
+
 using System;
 using System.Drawing;
 using System.Collections.Generic;
@@ -20,6 +40,7 @@ namespace DKSideMenu
 		private bool dropShadow;
 		private UIBarStyle barStyle;
 		#endregion
+
 		#region ctors
 		public DKSideMenuViewController (IntPtr handle) : base (handle)
 		{
@@ -52,6 +73,7 @@ namespace DKSideMenu
 			containerStack = new Stack<DKContentContainerView> ();
 		}
 		#endregion
+
 		#region props
 		[Outlet]
 		public UIView MenuBackgroundView { get; set; }
@@ -70,7 +92,30 @@ namespace DKSideMenu
 				return null;
 			}
 			set {
-				SetRootContentController (value, false);
+				// Запомним текущее состояние, так как метод RemoveAllContentViewControllers ()
+				// сбрасывает его в DKSideMenuState.SideMenuShown
+				DKSideMenuState currentState = State;
+				// Удалим все контроллеры из иерархии
+				RemoveAllContentViewControllers ();
+				// Создадим контейнер под контроллер
+				DKContentContainerView newContentContainerView = AddContentViewController (value);
+				// В зависимости от контроллера и текущего состояния установим положение контейнера:
+				// Если меню открыто, либо сокрыто, но мы в пейзаже, а контроллер его не поддерживает,
+				// оставим меню видимым, иначе покажем контроллер во весь экран
+				float newX = (currentState == DKSideMenuState.SideMenuShown || 
+							!ShouldAllowToggling (value)) ? MenuWidth : 0;
+				RectangleF newFrame = newContentContainerView.Frame;
+				newFrame.X = newX;
+				newContentContainerView.Frame = newFrame;
+				// Добавим контейнеру распознаватель жестов
+				newContentContainerView.AddGestureRecognizer (panRecognizer);
+				// Сообщим контроллеру о том, что он появился
+				value.DidMoveToParentViewController (this);
+				// Выставим текущее состояние меню
+				this.state = (newX > 0) ? DKSideMenuState.SideMenuShown : DKSideMenuState.SideMenuHidden;
+				// Добавим контроллер и контейнер в стек
+				containerStack.Push (newContentContainerView);
+				controllerStack.Push (value);
 			}
 		}
 
@@ -320,6 +365,7 @@ namespace DKSideMenu
 			}
 		}
 		#endregion
+
 		#region UIGestureRecognizerDelegate
 		[Export("gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:")]
 		protected bool ShouldRecognizeSimultaneously (UIGestureRecognizer firstRecognizer, UIGestureRecognizer secondRecognizer)
@@ -329,17 +375,6 @@ namespace DKSideMenu
 		#endregion
 
 		#region public API
-		/// <summary>
-		/// Sets the root content controller. Other view controllers will be removed from the queue.
-		/// </summary>
-		/// <param name="controller">Controller.</param>
-		/// <param name="animated">If set to <c>true</c> animated.</param>
-		public void SetRootContentController (UIViewController controller, bool animated)
-		{
-			RemoveAllContentViewControllers ();
-			PushViewController (controller, animated);
-		}
-
 		public override void PrepareForSegue (UIStoryboardSegue segue, NSObject sender)
 		{
 			if (segue.Identifier == "Embed root view controller") {
@@ -356,35 +391,13 @@ namespace DKSideMenu
 		/// <param name="animated">If set to <c>true</c> animated.</param>
 		public void PushViewController (UIViewController controller, bool animated)
 		{
-			// Зададим размер контейнера
-			RectangleF frame = GetContentContainerFrame (controller);
-			frame.X = this.View.Bounds.Width;
+			// Создадим контейнер под контроллер
+			DKContentContainerView newContentContainerView = AddContentViewController (controller);
 
-			// Создадим контейнер и настроим навигационную панель
-			DKContentContainerView newContentContainerView = new DKContentContainerView (frame);
-			if (ControllerSupportsLandscape (controller))
-				newContentContainerView.AutoresizingMask = UIViewAutoresizing.FlexibleDimensions; 
-			newContentContainerView.DropShadow = DropShadow;
-			newContentContainerView.NavigationBar.BarStyle = NavigationBarStyle;
-
-			UINavigationItem navItem = controller.NavigationItem;
-			if (navItem == null)
-				navItem = new UINavigationItem ();
-			if (controllerStack.Count > 0) {
-				newContentContainerView.NavigationBar.PushNavigationItem (new UINavigationItem (), false);
-				newContentContainerView.DidPressBackButton += HandleBackBarItemPressed;
-			} else {
-				navItem.LeftBarButtonItem = ToggleSideMenuBarButtonItem;
-				ToggleSideMenuBarButtonItem.Enabled = ShouldAllowToggling (controller);
-			}
-			newContentContainerView.NavigationBar.PushNavigationItem (navItem, false);
-
-			// Добавим контроллер в иерархию вьюшек
-			this.AddChildViewController (controller);
-			controller.View.Frame = newContentContainerView.ContentView.Bounds;
-			controller.View.AutoresizingMask = UIViewAutoresizing.FlexibleDimensions;
-			newContentContainerView.ContentView.AddSubview (controller.View);
-			this.View.AddSubview (newContentContainerView);
+			// Передвинем его за правую границу экрана
+			RectangleF newFrame = newContentContainerView.Frame;
+			newFrame.X = this.View.Bounds;
+			newContentContainerView.Frame = newFrame;
 
 			// Анимируем появление контейнера
 			if (animated) {
@@ -490,7 +503,7 @@ namespace DKSideMenu
 		{
 			// Если мы пытаемся показать контроллер, не поддерживающий пейзаж, будучи в пейзажной
 			// ориентации, сделаем меню видимым, иначе покажем весь контроллер целиком
-			float newX = (IsLandscape (this.InterfaceOrientation) && !ControllerSupportsLandscape (newController)) ? MenuWidth : 0;
+			float newX = !ShouldAllowToggling (newController) ? MenuWidth : 0;
 
 			RectangleF newContainerFrame = newContentContainerView.Frame;
 			newContainerFrame.X = newX;
@@ -569,6 +582,41 @@ namespace DKSideMenu
 
 			controllerStack.Clear ();
 			containerStack.Clear ();
+
+			this.state = DKSideMenuState.SideMenuShown;
+		}
+
+		private DKContentContainerView AddContentViewController (UIViewController contentViewController)
+		{
+			RectangleF frame = GetContentContainerFrame (contentViewController);
+
+			// Создадим контейнер и настроим навигационную панель
+			DKContentContainerView newContentContainerView = new DKContentContainerView (frame);
+			if (ControllerSupportsLandscape (contentViewController))
+				newContentContainerView.AutoresizingMask = UIViewAutoresizing.FlexibleDimensions; 
+			newContentContainerView.DropShadow = DropShadow;
+			newContentContainerView.NavigationBar.BarStyle = NavigationBarStyle;
+
+			UINavigationItem navItem = contentViewController.NavigationItem;
+			if (navItem == null)
+				navItem = new UINavigationItem ();
+			if (controllerStack.Count > 0) {
+				newContentContainerView.NavigationBar.PushNavigationItem (new UINavigationItem (), false);
+				newContentContainerView.DidPressBackButton += HandleBackBarItemPressed;
+			} else {
+				navItem.LeftBarButtonItem = ToggleSideMenuBarButtonItem;
+				ToggleSideMenuBarButtonItem.Enabled = ShouldAllowToggling (contentViewController);
+			}
+			newContentContainerView.NavigationBar.PushNavigationItem (navItem, false);
+
+			// Добавим контроллер в иерархию вьюшек
+			this.AddChildViewController (contentViewController);
+			contentViewController.View.Frame = newContentContainerView.ContentView.Bounds;
+			contentViewController.View.AutoresizingMask = UIViewAutoresizing.FlexibleDimensions;
+			newContentContainerView.ContentView.AddSubview (contentViewController.View);
+			this.View.AddSubview (newContentContainerView);
+
+			return newContentContainerView;
 		}
 
 		private void RemoveContentViewController (UIViewController contentViewController, DKContentContainerView contentContainerView)
@@ -588,9 +636,7 @@ namespace DKSideMenu
 		{
 			// Если контроллер поддерживает пейзажную ориентацию, а мы как раз 
 			// в ней находимся, сделаем вьюшку широкой
-			bool isLandscapeFullscreen = (this.InterfaceOrientation == UIInterfaceOrientation.LandscapeLeft || 
-			                              this.InterfaceOrientation == UIInterfaceOrientation.LandscapeRight) &&
-											ControllerSupportsLandscape (controller);
+			bool isLandscapeFullscreen = IsLandscape (this.InterfaceOrientation) && ControllerSupportsLandscape (controller);
 			if (isLandscapeFullscreen)
 				return new RectangleF (0, 0, this.View.Bounds.Width, this.View.Bounds.Height);
 			else
@@ -630,12 +676,11 @@ namespace DKSideMenu
 				// For some reason native "no segue" exception is not
 				// catched by try-catch in monotouch. This is heavily unsafe
 				// to leave this code here =(
-//				try {
-//					this.PerformSegue ("Embed root content view controller", this);
-//				}
-//				catch {
-//					Console.WriteLine ("DKSideMenyViewController: No root content view controller found");
-//				}
+				//	try {
+				//		this.PerformSegue ("Embed root content view controller", this);
+				//	} catch {
+				//		Console.WriteLine ("DKSideMenyViewController: No root content view controller found");
+				//	}
 			} else
 				PushViewController (InitialContentController, false);
 		}
@@ -740,9 +785,7 @@ namespace DKSideMenu
 
 		private bool ShouldAllowToggling (UIViewController controller, UIInterfaceOrientation orientation)
 		{
-			return orientation == UIInterfaceOrientation.Portrait || 
-				orientation == UIInterfaceOrientation.PortraitUpsideDown || 
-					ControllerSupportsLandscape (controller);
+			return !IsLandscape (orientation) || ControllerSupportsLandscape (controller);
 		}
 
 		private void MoveContentContainer (float destinationX, bool animated, NSAction completionHandle)
