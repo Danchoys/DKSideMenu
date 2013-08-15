@@ -1,5 +1,5 @@
-//  Created by Daniil Konoplev on 13-08-25.
-//  Copyright (c) 2011 Daniil Konoplev. All rights reserved.
+//  Created by Daniil Konoplev on 13-08-13.
+//  Copyright (c) 2013 Daniil Konoplev. All rights reserved.
 //
 //  Latest code can be found on GitHub: https://github.com/danchoys/DKSideMenu
 
@@ -396,7 +396,7 @@ namespace DKSideMenu
 
 			// Передвинем его за правую границу экрана
 			RectangleF newFrame = newContentContainerView.Frame;
-			newFrame.X = this.View.Bounds;
+			newFrame.X = this.View.Bounds.Width;
 			newContentContainerView.Frame = newFrame;
 
 			// Анимируем появление контейнера
