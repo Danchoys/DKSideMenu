@@ -1,3 +1,4 @@
-DKSideMenu/bin/
+*/bin/
+*/obj/
 .DS_Store
 *.userprefs
