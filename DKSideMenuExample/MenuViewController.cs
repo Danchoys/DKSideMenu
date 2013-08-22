@@ -73,7 +73,7 @@ namespace DKSideMenuExample
 		private void SelectFirstMenuItem (bool animated)
 		{
 			UIViewController controller = (UIViewController)this.Storyboard.InstantiateViewController ("First screen");
-			this.GetDKSideMenu ().SetRootContentController (controller, animated);
+			this.GetDKSideMenu ().RootContentController = controller;
 		}
 		#endregion
 	}

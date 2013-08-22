@@ -242,11 +242,10 @@ namespace DKSideMenu
 
 					RectangleF newFrame = this.menuContainerView.Frame;
 					newFrame.Width = this.menuWidth;
-
 					this.menuContainerView.Frame = newFrame;
 
 					this.MenuBackgroundView.Frame = newFrame;
-					this.ContentBackgroundView = new UIView (new RectangleF (this.menuWidth, 0, this.View.Bounds.Width - this.menuWidth, this.View.Bounds.Height));
+					this.ContentBackgroundView.Frame = new RectangleF (this.menuWidth, 0, this.View.Bounds.Width - this.menuWidth, this.View.Bounds.Height);
 
 					if (state == DKSideMenuState.SideMenuHidden)
 						MoveContentContainer (0, false, null);
@@ -327,6 +326,29 @@ namespace DKSideMenu
 		{
 			base.ViewWillAppear (animated);
 			HandleRotation (this.InterfaceOrientation);
+			foreach (UIViewController childController in this.ChildViewControllers)
+				childController.BeginAppearanceTransition (true, animated);
+		}
+
+		public override void ViewDidAppear (bool animated)
+		{
+			base.ViewDidAppear (animated);
+			foreach (UIViewController childController in this.ChildViewControllers)
+				childController.EndAppearanceTransition ();
+		}
+
+		public override void ViewWillDisappear (bool animated)
+		{
+			base.ViewWillDisappear (animated);
+			foreach (UIViewController childController in this.ChildViewControllers)
+				childController.BeginAppearanceTransition (false, animated);
+		}
+
+		public override void ViewDidDisappear (bool animated)
+		{
+			base.ViewDidDisappear (animated);
+			foreach (UIViewController childController in this.ChildViewControllers)
+				childController.EndAppearanceTransition ();
 		}
 		#endregion
 
@@ -355,8 +377,7 @@ namespace DKSideMenu
 			// Не используем метод SetState, так как он использует метод Toggle<..>,
 			// а тот в свою очередь не даст изменить состояние при таком контроллере
 			if (TopViewController != null) {
-				if ((orientation == UIInterfaceOrientation.LandscapeLeft ||
-					orientation == UIInterfaceOrientation.LandscapeRight) &&
+				if (IsLandscape (orientation) &&
 					!ControllerSupportsLandscape (TopViewController)) {
 					ToggleSideMenuBarButtonItem.Enabled = false;
 					MoveContentContainer (MenuWidth, false, null);
@@ -384,6 +405,12 @@ namespace DKSideMenu
 			}
 		}
 
+		 public override bool ShouldAutomaticallyForwardAppearanceMethods {
+			get {
+				return false;
+			}
+		}
+
 		/// <summary>
 		/// Pushs the view controller.
 		/// </summary>
@@ -393,11 +420,18 @@ namespace DKSideMenu
 		{
 			// Создадим контейнер под контроллер
 			DKContentContainerView newContentContainerView = AddContentViewController (controller);
-
 			// Передвинем его за правую границу экрана
 			RectangleF newFrame = newContentContainerView.Frame;
 			newFrame.X = this.View.Bounds.Width;
 			newContentContainerView.Frame = newFrame;
+
+			// Сообщим старому контроллеру о том, что он скоро пропадет
+			if (TopViewController != null)
+				TopViewController.BeginAppearanceTransition (false, animated);
+			// Сообщим новому контроллеру, что его вьюшка скоро появится
+			controller.BeginAppearanceTransition (true, animated);
+			// Добавим контейнер в иерархию
+			this.View.AddSubview (newContentContainerView);
 
 			// Анимируем появление контейнера
 			if (animated) {
@@ -426,9 +460,13 @@ namespace DKSideMenu
 
 			// Предупредим контроллер о грядущем удалении из родительского
 			oldTopController.WillMoveToParentViewController (null);
+			// Предупредим контроллер о грядущей анимации ухода
+			oldTopController.BeginAppearanceTransition (false, animated);
+			// Контейнер более не топовый, отсоединим от него распознаватель жестов
+			oldTopContentContainerView.RemoveGestureRecognizer (panRecognizer);
 			
 			// Добавим контейнер в иерархию под самую верхнюю вьюшку
-			if (TopContentContainerView != null) {
+			if (TopViewController != null) {
 				RectangleF contentContainerFrame = GetContentContainerFrame (TopViewController);
 				// Если меню отображено, но либо оно спрятано, но наш контроллер не показать его не может
 				// (девайс в пейзаже, а контроллер пейзаж не поддерживет), поставим контейнер чуть правее конечной позиции
@@ -436,6 +474,9 @@ namespace DKSideMenu
 											(State == DKSideMenuState.SideMenuShown) ? MenuWidth + 5 : 0;
 				TopContentContainerView.Frame = contentContainerFrame;
 
+				// Предупредим контроллер о предстоящей анимации показа
+				TopViewController.BeginAppearanceTransition (true, animated);
+				// Добавим контейнер в иерархию
 				this.View.InsertSubviewBelow (TopContentContainerView, oldTopContentContainerView);
 
 				// Настроим кнопку управления панелью
@@ -525,20 +566,24 @@ namespace DKSideMenu
 			return orientation == UIInterfaceOrientation.LandscapeLeft || orientation == UIInterfaceOrientation.LandscapeRight; 
 		}
 
-		private void HandleOnShowNewControllerComplete (UIViewController controller, DKContentContainerView newContentContainerView)
+		private void HandleOnShowNewControllerComplete (UIViewController newContentController, DKContentContainerView newContentContainerView)
 		{
-			controller.DidMoveToParentViewController (this);
-
 			// Удалим старый контейнер из иерархии
-			if (TopContentContainerView != null)
+			if (TopViewController != null) {
 				TopContentContainerView.RemoveFromSuperview ();
+				TopViewController.EndAppearanceTransition ();
+			}
 
 			newContentContainerView.AddGestureRecognizer (panRecognizer);
+			// Сообщим контроллеру о том, что его вьюшка полностью показана
+			newContentController.EndAppearanceTransition ();
+			// Сообщим контроллеру о том, что он полностью поместился в родительский
+			newContentController.DidMoveToParentViewController (this);
 
 			this.state = (newContentContainerView.Frame.X > 0) ? DKSideMenuState.SideMenuShown : DKSideMenuState.SideMenuHidden;
 
 			containerStack.Push (newContentContainerView);
-			controllerStack.Push (controller);
+			controllerStack.Push (newContentController);
 		}
 
 		private void HideTopController (DKContentContainerView oldTopContentContainerView)
@@ -560,10 +605,16 @@ namespace DKSideMenu
 
 		private void HandleOnHideTopControllerComplete (UIViewController oldTopViewController, DKContentContainerView oldTopContentContainerView)
 		{
+			// Удалим старый контейнер из иерархии
+			oldTopContentContainerView.RemoveFromSuperview ();
+			// Сообщим контроллеру о том, что анимация ухода окончена, 
+			// а вьюшка более не в иерархии
+			oldTopViewController.EndAppearanceTransition ();
+			// Удалим контроллер из родительского
 			RemoveContentViewController (oldTopViewController, oldTopContentContainerView);
 
-			if (TopContentContainerView != null)
-				TopContentContainerView.AddGestureRecognizer (panRecognizer);
+			if (TopViewController != null)
+				TopViewController.EndAppearanceTransition ();
 
 			// Если контроллеров стеке нет, либо контейнер не прижат к левой границе экрана,
 			// будем считать, что меню отображается
@@ -572,11 +623,37 @@ namespace DKSideMenu
 
 		private void RemoveAllContentViewControllers ()
 		{
+			// Топовый контроллер в данный момент отображается, и для его
+			// правильного ухода из иерархии должны произойти события ViewWillDisappear
+			// и ViewDidDisappear. Вьюшки остальных контролеров не находятся в иерархии,
+			// поэтому для них эти события вызывать не нужно
+			if (TopViewController != null) {
+				// Сообщим контроолеру о грядущем удалении из родительского
+				TopViewController.WillMoveToParentViewController (null);
+				// Сообщим контроллеру о начале анимации ухода вьюшки из иерархии
+				TopViewController.BeginAppearanceTransition (false, false);
+				// Отсоединим от него распознаватель жестов
+				TopContentContainerView.RemoveGestureRecognizer (panRecognizer);
+				// Удалим контейнер из иерархии
+				TopContentContainerView.RemoveFromSuperview ();
+				// Сообщим контроллеру о том, что вьюшка покинула иерархию
+				TopViewController.EndAppearanceTransition ();
+				// Удалим контроллер из родительського и деинициализируем контейнер
+				RemoveContentViewController (TopViewController, TopContentContainerView);
+
+				controllerStack.Pop ();
+				containerStack.Pop ();
+			}
+
 			UIViewController[] contentControllers = controllerStack.ToArray ();
 			DKContentContainerView[] contentContainers = containerStack.ToArray ();
 
 			for (int i = 0; i < contentControllers.Length; i++) {
+				// Сообщим контроолеру о грядущем удалении из родительского
 				contentControllers [i].WillMoveToParentViewController (null);
+				// Отсоединим от контейнера распознаватель жестов
+				TopContentContainerView.RemoveGestureRecognizer (panRecognizer);
+				// Удалим контроллер из родительського и деинициализируем контейнер
 				RemoveContentViewController (contentControllers [i], contentContainers [i]);
 			}
 
@@ -609,26 +686,28 @@ namespace DKSideMenu
 			}
 			newContentContainerView.NavigationBar.PushNavigationItem (navItem, false);
 
-			// Добавим контроллер в иерархию вьюшек
+			// Добавим контроллер к родительскому
 			this.AddChildViewController (contentViewController);
 			contentViewController.View.Frame = newContentContainerView.ContentView.Bounds;
 			contentViewController.View.AutoresizingMask = UIViewAutoresizing.FlexibleDimensions;
+			// Добавим вьшку контроллера в контейнер
 			newContentContainerView.ContentView.AddSubview (contentViewController.View);
-			this.View.AddSubview (newContentContainerView);
 
 			return newContentContainerView;
 		}
 
 		private void RemoveContentViewController (UIViewController contentViewController, DKContentContainerView contentContainerView)
 		{
+			// Удалим вьюшку контроллера из контейнера (возможно, лишний шаг)
 			contentViewController.View.RemoveFromSuperview ();
+			// Удалим контроллер из родительского
 			contentViewController.RemoveFromParentViewController ();
+			// Если указана соотв. настройка, очистим этот контроллер
 			if (AutomaticallyDisposeChildControllers)
 				contentViewController.Dispose ();
 
+			// Удалим контейнер
 			contentContainerView.DidPressBackButton -= HandleBackBarItemPressed;
-			contentContainerView.RemoveGestureRecognizer (panRecognizer);
-			contentContainerView.RemoveFromSuperview ();
 			contentContainerView.Dispose ();
 		}
 

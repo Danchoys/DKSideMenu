@@ -51,6 +51,6 @@ Global
 		{A4C37085-FFF5-4E13-BF52-0D6F35556C1E}.Release|iPhoneSimulator.Build.0 = Release|iPhoneSimulator
 	EndGlobalSection
 	GlobalSection(MonoDevelopProperties) = preSolution
-		StartupItem = DKSideMenu\DKSideMenu.csproj
+		StartupItem = DKSideMenuExample\DKSideMenuExample.csproj
 	EndGlobalSection
 EndGlobal
