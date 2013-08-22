@@ -482,6 +482,8 @@ namespace DKSideMenu
 
 				// Предупредим контроллер о предстоящей анимации показа
 				TopViewController.BeginAppearanceTransition (true, animated);
+				// Добавим контейнеру распознаватель жестов
+				TopContentContainerView.AddGestureRecognizer (panRecognizer);
 				// Добавим контейнер в иерархию
 				this.View.InsertSubviewBelow (TopContentContainerView, oldTopContentContainerView);
 
@@ -657,8 +659,6 @@ namespace DKSideMenu
 			for (int i = 0; i < contentControllers.Length; i++) {
 				// Сообщим контроолеру о грядущем удалении из родительского
 				contentControllers [i].WillMoveToParentViewController (null);
-				// Отсоединим от контейнера распознаватель жестов
-				TopContentContainerView.RemoveGestureRecognizer (panRecognizer);
 				// Удалим контроллер из родительського и деинициализируем контейнер
 				RemoveContentViewController (contentControllers [i], contentContainers [i]);
 			}
