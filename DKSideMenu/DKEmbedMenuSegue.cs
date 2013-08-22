@@ -40,6 +40,8 @@ namespace DKSideMenu
 		public override void Perform ()
 		{
 			DKSideMenuViewController sideMenuController = SourceViewController as DKSideMenuViewController;
+			if (sideMenuController == null)
+				throw new Exception ("DKEmbedMenuSegue can only be used with DKSideMenuController");
 			sideMenuController.EmbedMenuViewController (DestinationViewController);
 		}
 	}

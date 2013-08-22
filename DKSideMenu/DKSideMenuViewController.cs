@@ -107,9 +107,15 @@ namespace DKSideMenu
 				RectangleF newFrame = newContentContainerView.Frame;
 				newFrame.X = newX;
 				newContentContainerView.Frame = newFrame;
+				// Сообщим контроллеру о том, что грядет анимация показа его вьюшки
+				value.BeginAppearanceTransition (true, false);
+				// Добавим контейнер в иерархию
+				this.View.AddSubview (newContentContainerView);
 				// Добавим контейнеру распознаватель жестов
 				newContentContainerView.AddGestureRecognizer (panRecognizer);
-				// Сообщим контроллеру о том, что он появился
+				// Сообщим контроллеру о том, что его вьюшка попала в иерархию
+				value.EndAppearanceTransition ();
+				// Сообщим контроллеру о том, что он добавился к родительскому
 				value.DidMoveToParentViewController (this);
 				// Выставим текущее состояние меню
 				this.state = (newX > 0) ? DKSideMenuState.SideMenuShown : DKSideMenuState.SideMenuHidden;

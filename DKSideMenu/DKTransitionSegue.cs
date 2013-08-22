@@ -44,6 +44,8 @@ namespace DKSideMenu
 		public override void Perform ()
 		{
 			DKSideMenuViewController sideMenuController = SourceViewController.GetDKSideMenu ();
+			if (sideMenuController == null)
+				throw new Exception ("DKTransitionSegue can only be used with DKSideMenuController");
 			sideMenuController.PushViewController (DestinationViewController, Animated);
 		}
 	}
