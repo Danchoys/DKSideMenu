@@ -57,7 +57,6 @@ namespace DKSideMenu
 			this.Layer.ShadowRadius = 3;
 			this.Layer.ShadowOpacity = 1f;
 			this.Layer.ShadowColor = UIColor.Black.CGColor;
-			this.Layer.ShadowPath = UIBezierPath.FromRect (new RectangleF (-2, 0, frame.Width + 4, frame.Height + 6)).CGPath;
 		}
 		#endregion
 
@@ -74,6 +73,21 @@ namespace DKSideMenu
 				SetNavigationBarHidden (value, false);
 			}
 		}
+		#endregion
+
+		#region internal API
+		internal UINavigationBar NavigationBar { get; private set; }
+
+		internal UIView ContentView { get; private set; }
+
+		internal bool DropShadow {
+			get {
+				return !this.Layer.MasksToBounds;
+			}
+			set {
+				this.Layer.MasksToBounds = !value;
+			}
+		}		
 
 		internal event EventHandler DidPressBackButton;
 
@@ -108,21 +122,6 @@ namespace DKSideMenu
 				contentViewFrame.Height = this.Bounds.Height - this.NavigationBar.Frame.Bottom;
 				this.ContentView.Frame = contentViewFrame;
 			});
-		}
-		#endregion
-
-		#region internal API
-		internal UINavigationBar NavigationBar { get; private set; }
-
-		internal UIView ContentView { get; private set; }
-
-		internal bool DropShadow {
-			get {
-				return !this.Layer.MasksToBounds;
-			}
-			set {
-				this.Layer.MasksToBounds = !value;
-			}
 		}
 		#endregion
 

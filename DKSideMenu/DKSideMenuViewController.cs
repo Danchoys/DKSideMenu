@@ -61,6 +61,7 @@ namespace DKSideMenu
 			this.barStyle = UIBarStyle.Default;
 			this.menuWidth = 256;
 			this.dropShadow = true;
+
 			AutomaticallyDisposeChildControllers = false;
 			ThresholdX = 128;
 			ThresholdVelocity = 800;
@@ -75,16 +76,39 @@ namespace DKSideMenu
 		#endregion
 
 		#region props
+		/// <summary>
+		/// Gets or sets the menu background view.
+		/// </summary>
+		/// <value>The menu background view.</value>
 		[Outlet]
 		public UIView MenuBackgroundView { get; set; }
 
+		/// <summary>
+		/// Gets or sets the content background view.
+		/// </summary>
+		/// <value>The content background view.</value>
 		[Outlet]
 		public UIView ContentBackgroundView { get; set; }
 
+		/// <summary>
+		/// Gets or sets the menu controller. It used as the menu controller
+		/// when SetupSideMenuController is called. If menu is embeded via a segue
+		/// this property is set automatically.
+		/// </summary>
+		/// <value>The menu controller.</value>
 		public UIViewController MenuController { get; set; }
 
+		/// <summary>
+		/// Gets or sets the initial content controller. It is used
+		/// as the first content controller  when SetupSideMenuController is called
+		/// </summary>
+		/// <value>The initial content controller.</value>
 		public UIViewController InitialContentController { get; set; }
 
+		/// <summary>
+		/// Gets or sets the root content controller.
+		/// </summary>
+		/// <value>The root content controller.</value>
 		public UIViewController RootContentController { 
 			get {
 				if (controllerStack.Count > 0)
@@ -125,7 +149,11 @@ namespace DKSideMenu
 			}
 		}
 
-		public UIViewController TopViewController { 
+		/// <summary>
+		/// Gets the top content view controller.
+		/// </summary>
+		/// <value>The top view controller.</value>
+		public UIViewController TopContentController { 
 			get {
 				if (controllerStack.Count > 0)
 					return controllerStack.Peek ();
@@ -133,6 +161,10 @@ namespace DKSideMenu
 			}
 		}
 
+		/// <summary>
+		/// Gets or sets the menu state.
+		/// </summary>
+		/// <value>The state.</value>
 		public DKSideMenuState State { 
 			get {
 				return this.state;
@@ -304,7 +336,7 @@ namespace DKSideMenu
 			// Создадим фоновую вьюшку меню
 			if (MenuBackgroundView == null) {
 				MenuBackgroundView = new UIView (new RectangleF (0, 0, MenuWidth, this.View.Bounds.Height));
-				MenuBackgroundView.AutoresizingMask = UIViewAutoresizing.FlexibleHeight;
+				MenuBackgroundView.AutoresizingMask = UIViewAutoresizing.FlexibleHeight | UIViewAutoresizing.FlexibleRightMargin;
 				MenuBackgroundView.BackgroundColor = UIColor.Clear;
 				this.View.AddSubview (MenuBackgroundView);
 			}
@@ -319,7 +351,7 @@ namespace DKSideMenu
 
 			// Создадим конейнер для меню
 			menuContainerView = new UIView (new RectangleF (0, 0, MenuWidth, this.View.Bounds.Height));
-			menuContainerView.AutoresizingMask = UIViewAutoresizing.FlexibleHeight;
+			menuContainerView.AutoresizingMask = UIViewAutoresizing.FlexibleHeight | UIViewAutoresizing.FlexibleRightMargin;
 			menuContainerView.BackgroundColor = UIColor.Clear;
 			this.View.AddSubview (menuContainerView);
 
@@ -370,9 +402,9 @@ namespace DKSideMenu
 			return UIInterfaceOrientationMask.All;
 		}
 
-		public override void WillRotate (UIInterfaceOrientation toInterfaceOrientation, double duration)
+		public override void WillAnimateRotation (UIInterfaceOrientation toInterfaceOrientation, double duration)
 		{
-			base.WillRotate (toInterfaceOrientation, duration);
+			base.WillAnimateRotation (toInterfaceOrientation, duration);
 			HandleRotation (toInterfaceOrientation);
 		}
 
@@ -382,9 +414,9 @@ namespace DKSideMenu
 			// такого не поддерживает, покажем меню без анимации.
 			// Не используем метод SetState, так как он использует метод Toggle<..>,
 			// а тот в свою очередь не даст изменить состояние при таком контроллере
-			if (TopViewController != null) {
+			if (TopContentController != null) {
 				if (IsLandscape (orientation) &&
-					!ControllerSupportsLandscape (TopViewController)) {
+					!ControllerSupportsLandscape (TopContentController)) {
 					ToggleSideMenuBarButtonItem.Enabled = false;
 					MoveContentContainer (MenuWidth, false, null);
 				} else
@@ -408,6 +440,8 @@ namespace DKSideMenu
 				DKTransitionSegue transitionSegue = segue as DKTransitionSegue;
 				if (transitionSegue != null)
 					transitionSegue.Animated = false;
+			} else if (segue.Identifier == "Embed menu view controller") {
+				this.MenuController = segue.DestinationViewController;
 			}
 		}
 
@@ -418,11 +452,11 @@ namespace DKSideMenu
 		}
 
 		/// <summary>
-		/// Pushs the view controller.
+		/// Pushes the view controller.
 		/// </summary>
 		/// <param name="controller">Controller.</param>
 		/// <param name="animated">If set to <c>true</c> animated.</param>
-		public void PushViewController (UIViewController controller, bool animated)
+		public void PushContentController (UIViewController controller, bool animated)
 		{
 			// Создадим контейнер под контроллер
 			DKContentContainerView newContentContainerView = AddContentViewController (controller);
@@ -432,8 +466,8 @@ namespace DKSideMenu
 			newContentContainerView.Frame = newFrame;
 
 			// Сообщим старому контроллеру о том, что он скоро пропадет
-			if (TopViewController != null)
-				TopViewController.BeginAppearanceTransition (false, animated);
+			if (TopContentController != null)
+				TopContentController.BeginAppearanceTransition (false, animated);
 			// Сообщим новому контроллеру, что его вьюшка скоро появится
 			controller.BeginAppearanceTransition (true, animated);
 			// Добавим контейнер в иерархию
@@ -453,12 +487,12 @@ namespace DKSideMenu
 		}
 
 		/// <summary>
-		/// Pops the top view controller.
+		/// Pops the top content controller.
 		/// </summary>
 		/// <param name="animated">If set to <c>true</c> animated.</param>
-		public void PopTopViewController (bool animated)
+		public void PopTopContentController (bool animated)
 		{
-			if (TopViewController == null)
+			if (TopContentController == null)
 				return;
 
 			UIViewController oldTopController = controllerStack.Pop ();
@@ -472,23 +506,23 @@ namespace DKSideMenu
 			oldTopContentContainerView.RemoveGestureRecognizer (panRecognizer);
 			
 			// Добавим контейнер в иерархию под самую верхнюю вьюшку
-			if (TopViewController != null) {
-				RectangleF contentContainerFrame = GetContentContainerFrame (TopViewController);
+			if (TopContentController != null) {
+				RectangleF contentContainerFrame = GetContentContainerFrame (TopContentController);
 				// Если меню отображено, но либо оно спрятано, но наш контроллер не показать его не может
 				// (девайс в пейзаже, а контроллер пейзаж не поддерживет), поставим контейнер чуть правее конечной позиции
-				contentContainerFrame.X = (IsLandscape (this.InterfaceOrientation) && !ControllerSupportsLandscape (TopViewController)) ||
+				contentContainerFrame.X = (IsLandscape (this.InterfaceOrientation) && !ControllerSupportsLandscape (TopContentController)) ||
 											(State == DKSideMenuState.SideMenuShown) ? MenuWidth + 5 : 0;
 				TopContentContainerView.Frame = contentContainerFrame;
 
 				// Предупредим контроллер о предстоящей анимации показа
-				TopViewController.BeginAppearanceTransition (true, animated);
+				TopContentController.BeginAppearanceTransition (true, animated);
 				// Добавим контейнеру распознаватель жестов
 				TopContentContainerView.AddGestureRecognizer (panRecognizer);
 				// Добавим контейнер в иерархию
 				this.View.InsertSubviewBelow (TopContentContainerView, oldTopContentContainerView);
 
 				// Настроим кнопку управления панелью
-				ToggleSideMenuBarButtonItem.Enabled = ShouldAllowToggling (TopViewController);
+				ToggleSideMenuBarButtonItem.Enabled = ShouldAllowToggling (TopContentController);
 			}
 
 			// Анимируем удаление контейнера
@@ -569,17 +603,12 @@ namespace DKSideMenu
 			}
 		}
 
-		private bool IsLandscape (UIInterfaceOrientation orientation) 
-		{
-			return orientation == UIInterfaceOrientation.LandscapeLeft || orientation == UIInterfaceOrientation.LandscapeRight; 
-		}
-
 		private void HandleOnShowNewControllerComplete (UIViewController newContentController, DKContentContainerView newContentContainerView)
 		{
 			// Удалим старый контейнер из иерархии
-			if (TopViewController != null) {
+			if (TopContentController != null) {
 				TopContentContainerView.RemoveFromSuperview ();
-				TopViewController.EndAppearanceTransition ();
+				TopContentController.EndAppearanceTransition ();
 			}
 
 			newContentContainerView.AddGestureRecognizer (panRecognizer);
@@ -602,12 +631,12 @@ namespace DKSideMenu
 			oldTopContentContainerView.Frame = newOldTopContentContainerViewFrame;
 
 			// Покажем новый контейнер
-			if (TopViewController != null) {
+			if (TopContentController != null) {
 				// Если контейнер не прижат к левому краю, значит следует оставить меню отображенным
 				float newX = (TopContentContainerView.Frame.X > 0) ? MenuWidth : 0;
-				RectangleF newTopContentConteinerViewFrame = TopContentContainerView.Frame;
-				newTopContentConteinerViewFrame.X = newX;
-				TopContentContainerView.Frame = newTopContentConteinerViewFrame;
+				RectangleF newTopContentContainerViewFrame = TopContentContainerView.Frame;
+				newTopContentContainerViewFrame.X = newX;
+				TopContentContainerView.Frame = newTopContentContainerViewFrame;
 			}
 		}
 
@@ -621,12 +650,17 @@ namespace DKSideMenu
 			// Удалим контроллер из родительского
 			RemoveContentViewController (oldTopViewController, oldTopContentContainerView);
 
-			if (TopViewController != null)
-				TopViewController.EndAppearanceTransition ();
+			if (TopContentController != null)
+				TopContentController.EndAppearanceTransition ();
 
 			// Если контроллеров стеке нет, либо контейнер не прижат к левой границе экрана,
 			// будем считать, что меню отображается
 			this.state = (TopContentContainerView == null || TopContentContainerView.Frame.X > 0) ? DKSideMenuState.SideMenuShown : DKSideMenuState.SideMenuHidden;
+		}
+
+		private bool IsLandscape (UIInterfaceOrientation orientation) 
+		{
+			return orientation == UIInterfaceOrientation.LandscapeLeft || orientation == UIInterfaceOrientation.LandscapeRight; 
 		}
 
 		private void RemoveAllContentViewControllers ()
@@ -635,19 +669,19 @@ namespace DKSideMenu
 			// правильного ухода из иерархии должны произойти события ViewWillDisappear
 			// и ViewDidDisappear. Вьюшки остальных контролеров не находятся в иерархии,
 			// поэтому для них эти события вызывать не нужно
-			if (TopViewController != null) {
-				// Сообщим контроолеру о грядущем удалении из родительского
-				TopViewController.WillMoveToParentViewController (null);
+			if (TopContentController != null) {
+				// Сообщим контроллеру о грядущем удалении из родительского
+				TopContentController.WillMoveToParentViewController (null);
 				// Сообщим контроллеру о начале анимации ухода вьюшки из иерархии
-				TopViewController.BeginAppearanceTransition (false, false);
+				TopContentController.BeginAppearanceTransition (false, false);
 				// Отсоединим от него распознаватель жестов
 				TopContentContainerView.RemoveGestureRecognizer (panRecognizer);
 				// Удалим контейнер из иерархии
 				TopContentContainerView.RemoveFromSuperview ();
 				// Сообщим контроллеру о том, что вьюшка покинула иерархию
-				TopViewController.EndAppearanceTransition ();
+				TopContentController.EndAppearanceTransition ();
 				// Удалим контроллер из родительського и деинициализируем контейнер
-				RemoveContentViewController (TopViewController, TopContentContainerView);
+				RemoveContentViewController (TopContentController, TopContentContainerView);
 
 				controllerStack.Pop ();
 				containerStack.Pop ();
@@ -657,7 +691,7 @@ namespace DKSideMenu
 			DKContentContainerView[] contentContainers = containerStack.ToArray ();
 
 			for (int i = 0; i < contentControllers.Length; i++) {
-				// Сообщим контроолеру о грядущем удалении из родительского
+				// Сообщим контроллеру о грядущем удалении из родительского
 				contentControllers [i].WillMoveToParentViewController (null);
 				// Удалим контроллер из родительського и деинициализируем контейнер
 				RemoveContentViewController (contentControllers [i], contentContainers [i]);
@@ -730,7 +764,7 @@ namespace DKSideMenu
 
 		private void HandleBackBarItemPressed (object sender, EventArgs e)
 		{
-			PopTopViewController (true);
+			PopTopContentController (true);
 		}
 
 		private void HandleToggleSideMenuBarItemPressed (object sender, EventArgs e)
@@ -764,10 +798,10 @@ namespace DKSideMenu
 				//	try {
 				//		this.PerformSegue ("Embed root content view controller", this);
 				//	} catch {
-				//		Console.WriteLine ("DKSideMenyViewController: No root content view controller found");
+				//		Console.WriteLine ("DKSideMenuViewController: No root content view controller found");
 				//	}
 			} else
-				PushViewController (InitialContentController, false);
+				PushContentController (InitialContentController, false);
 		}
 
 		internal void EmbedMenuViewController (UIViewController menuController)
@@ -775,7 +809,9 @@ namespace DKSideMenu
 			this.AddChildViewController (menuController);
 			menuController.View.Frame = menuContainerView.Bounds;
 			menuController.View.AutoresizingMask = UIViewAutoresizing.FlexibleDimensions;
+//			menuController.BeginAppearanceTransition (true, false);
 			menuContainerView.AddSubview (menuController.View);
+//			menuController.EndAppearanceTransition ();
 			menuController.DidMoveToParentViewController (this);
 		}
 
@@ -789,7 +825,7 @@ namespace DKSideMenu
 				RectangleF frame = TopContentContainerView.Frame;
 				float translationX = translation.X;
 				// Если контентная область вышла за границы экрана, либо ей
-				// нельзя двигаться, уменьшим перемещение в три раза
+				// нельзя двигаться, уменьшим перемещение в десять раз
 				if (frame.X < 0 || frame.X > MenuWidth || !ShouldAllowToggling ())
 					translationX /= 10;
 				frame.X += translationX;
@@ -855,12 +891,12 @@ namespace DKSideMenu
 
 		private bool ShouldAllowToggling ()
 		{
-			return ShouldAllowToggling (TopViewController);
+			return ShouldAllowToggling (TopContentController);
 		}
 
 		private bool ShouldAllowToggling (UIInterfaceOrientation orientation)
 		{
-			return ShouldAllowToggling (TopViewController, orientation);
+			return ShouldAllowToggling (TopContentController, orientation);
 		}
 
 		private bool ShouldAllowToggling (UIViewController controller)
