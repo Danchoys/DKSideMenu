@@ -1,0 +1,7 @@
+//
+// Prefix header for all source files of the 'Library Resources' target in the 'Library Resources' project
+//
+
+#ifdef __OBJC__
+    #import <Cocoa/Cocoa.h>
+#endif
