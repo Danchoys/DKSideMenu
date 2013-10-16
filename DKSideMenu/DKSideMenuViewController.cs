@@ -121,31 +121,11 @@ namespace DKSideMenu
 				DKSideMenuState currentState = State;
 				// Удалим все контроллеры из иерархии
 				RemoveAllContentViewControllers ();
-				// Создадим контейнер под контроллер
-				DKContentContainerView newContentContainerView = AddContentViewController (value);
-				// В зависимости от контроллера и текущего состояния установим положение контейнера:
-				// Если меню открыто, либо сокрыто, но мы в пейзаже, а контроллер его не поддерживает,
-				// оставим меню видимым, иначе покажем контроллер во весь экран
-				float newX = (currentState == DKSideMenuState.SideMenuShown || 
-							!ShouldAllowToggling (value)) ? MenuWidth : 0;
-				RectangleF newFrame = newContentContainerView.Frame;
-				newFrame.X = newX;
-				newContentContainerView.Frame = newFrame;
-				// Сообщим контроллеру о том, что грядет анимация показа его вьюшки
-				value.BeginAppearanceTransition (true, false);
-				// Добавим контейнер в иерархию
-				this.View.AddSubview (newContentContainerView);
-				// Добавим контейнеру распознаватель жестов
-				newContentContainerView.AddGestureRecognizer (panRecognizer);
-				// Сообщим контроллеру о том, что его вьюшка попала в иерархию
-				value.EndAppearanceTransition ();
-				// Сообщим контроллеру о том, что он добавился к родительскому
-				value.DidMoveToParentViewController (this);
-				// Выставим текущее состояние меню
-				this.state = (newX > 0) ? DKSideMenuState.SideMenuShown : DKSideMenuState.SideMenuHidden;
-				// Добавим контроллер и контейнер в стек
-				containerStack.Push (newContentContainerView);
-				controllerStack.Push (value);
+				// Добавим в стек новый контроллер
+				PushContentController (value, false);
+				// Выставим текущее состояние меню. Если контроллер такое состояние
+				// не поддерживает, то никакое действие произведено не будет
+				SetState (currentState, false);
 			}
 		}
 
@@ -456,8 +436,10 @@ namespace DKSideMenu
 		/// </summary>
 		/// <param name="controller">Controller.</param>
 		/// <param name="animated">If set to <c>true</c> animated.</param>
-		public void PushContentController (UIViewController controller, bool animated)
+		public async void PushContentController (UIViewController controller, bool animated)
 		{
+			// Отключим всякое взаимодействие с приложением на время анимации
+			UIApplication.SharedApplication.BeginIgnoringInteractionEvents ();
 			// Создадим контейнер под контроллер
 			DKContentContainerView newContentContainerView = AddContentViewController (controller);
 			// Передвинем его за правую границу экрана
@@ -474,26 +456,26 @@ namespace DKSideMenu
 			this.View.AddSubview (newContentContainerView);
 
 			// Анимируем появление контейнера
-			if (animated) {
-				UIView.Animate (0.3, () => {
-					ShowNewController (controller, newContentContainerView);
-				}, () => {
-					HandleOnShowNewControllerComplete (controller, newContentContainerView);
-				});
-			} else {
+			if (animated)
+				await UIView.AnimateAsync (0.3, () => ShowNewController (controller, newContentContainerView));
+			else
 				ShowNewController (controller, newContentContainerView);
-				HandleOnShowNewControllerComplete (controller, newContentContainerView);
-			}
+			HandleNewControllerShown (controller, newContentContainerView);
+			// Возобновим взаимодействие приложения с пользователем
+			UIApplication.SharedApplication.EndIgnoringInteractionEvents ();
 		}
 
 		/// <summary>
 		/// Pops the top content controller.
 		/// </summary>
 		/// <param name="animated">If set to <c>true</c> animated.</param>
-		public void PopTopContentController (bool animated)
+		public async void PopTopContentController (bool animated)
 		{
 			if (TopContentController == null)
 				return;
+
+			// Отключим всякое взаимодействие с приложением на время анимации
+			UIApplication.SharedApplication.BeginIgnoringInteractionEvents ();
 
 			UIViewController oldTopController = controllerStack.Pop ();
 			DKContentContainerView oldTopContentContainerView = containerStack.Pop ();
@@ -527,11 +509,12 @@ namespace DKSideMenu
 
 			// Анимируем удаление контейнера
 			if (animated)
-				UIView.Animate (0.3, () => HideTopController (oldTopContentContainerView), () => HandleOnHideTopControllerComplete (oldTopController, oldTopContentContainerView));
-			else {
+				await UIView.AnimateAsync (0.3, () => HideTopController (oldTopContentContainerView));
+			else
 				HideTopController (oldTopContentContainerView);
-				HandleOnHideTopControllerComplete (oldTopController, oldTopContentContainerView);
-			}		
+			HandleTopControllerHidden (oldTopController, oldTopContentContainerView);
+			// Возобновим взаимодействие приложения с пользователем
+			UIApplication.SharedApplication.EndIgnoringInteractionEvents ();
 		}
 
 		/// <summary>
@@ -594,7 +577,7 @@ namespace DKSideMenu
 
 			// Отодвинем текущий контейнер вправо так, чтобы его не было
 			// видно, когда вылезет новый
-			if (TopContentContainerView != null) {
+			if (TopContentController != null) {
 				// Если новый контроллер будет отображен не во весь экран, пододвинем
 				// старый контроллер вправо, чтобы он ему не мешал
 				RectangleF oldContainerFrame = TopContentContainerView.Frame;
@@ -603,7 +586,7 @@ namespace DKSideMenu
 			}
 		}
 
-		private void HandleOnShowNewControllerComplete (UIViewController newContentController, DKContentContainerView newContentContainerView)
+		private void HandleNewControllerShown (UIViewController newContentController, DKContentContainerView newContentContainerView)
 		{
 			// Удалим старый контейнер из иерархии
 			if (TopContentController != null) {
@@ -640,7 +623,7 @@ namespace DKSideMenu
 			}
 		}
 
-		private void HandleOnHideTopControllerComplete (UIViewController oldTopViewController, DKContentContainerView oldTopContentContainerView)
+		private void HandleTopControllerHidden (UIViewController oldTopViewController, DKContentContainerView oldTopContentContainerView)
 		{
 			// Удалим старый контейнер из иерархии
 			oldTopContentContainerView.RemoveFromSuperview ();
@@ -774,9 +757,7 @@ namespace DKSideMenu
 
 		private bool ControllerSupportsLandscape (UIViewController controller)
 		{
-			return (controller.ShouldAutorotateToInterfaceOrientation (UIInterfaceOrientation.LandscapeLeft) &&
-				controller.ShouldAutorotateToInterfaceOrientation (UIInterfaceOrientation.LandscapeRight)) ||
-				((controller.GetSupportedInterfaceOrientations () & UIInterfaceOrientationMask.LandscapeLeft) != (UIInterfaceOrientationMask)0 &&
+			return ((controller.GetSupportedInterfaceOrientations () & UIInterfaceOrientationMask.LandscapeLeft) != (UIInterfaceOrientationMask)0 &&
 				(controller.GetSupportedInterfaceOrientations () & UIInterfaceOrientationMask.LandscapeRight) != (UIInterfaceOrientationMask)0);
 		}
 
