@@ -701,7 +701,15 @@ namespace DKSideMenu
 			if (navItem == null)
 				navItem = new UINavigationItem ();
 			if (controllerStack.Count > 0) {
-				newContentContainerView.NavigationBar.PushNavigationItem (new UINavigationItem (), false);
+				string prevControllerTitle = null;
+				// Сперва посмотрим, задан ли у котнроллера заголовок
+				if (!string.IsNullOrEmpty (TopContentController.Title))
+					prevControllerTitle = TopContentController.Title;
+				// Если заголовок установлен не был, проверим, есть ли у контроллера
+				// навигационный элемент и задан ли у него заголовок
+				if (prevControllerTitle == null && TopContentController.NavigationItem != null && !string.IsNullOrEmpty (TopContentController.NavigationItem.Title))
+					prevControllerTitle = TopContentController.NavigationItem.Title;
+				newContentContainerView.NavigationBar.PushNavigationItem (prevControllerTitle != null ? new UINavigationItem (prevControllerTitle) : new UINavigationItem (), false);
 				newContentContainerView.DidPressBackButton += HandleBackBarItemPressed;
 			} else {
 				navItem.LeftBarButtonItem = ToggleSideMenuBarButtonItem;
