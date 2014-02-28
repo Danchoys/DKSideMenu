@@ -37,6 +37,28 @@ namespace DKSideMenu
 
 			return (DKSideMenuViewController)parentViewController;
 		}
+
+		internal static void BeginAppearanceTransitionIfNeeded (this UIViewController _this, bool isAppearing, bool animated)
+		{
+			DKSideMenuViewController sideMenuController = _this.GetDKSideMenu ();
+			if (sideMenuController != null) {
+				if (sideMenuController.ShouldControllerBeginAppearanceTransition (_this)) {
+					_this.BeginAppearanceTransition (isAppearing, animated);
+					sideMenuController.SetControllerTransitioningAppearance (_this, true);
+				}
+			}
+		}
+
+		internal static void EndAppearanceTransitionIfNeeded (this UIViewController _this)
+		{
+			DKSideMenuViewController sideMenuController = _this.GetDKSideMenu ();
+			if (sideMenuController != null) {
+				if (sideMenuController.ShouldControllerEndAppearanceTransition (_this)) {
+					_this.EndAppearanceTransition ();
+					sideMenuController.SetControllerTransitioningAppearance (_this, false);
+				}
+			}
+		}
 	}
 }
 

@@ -48,6 +48,8 @@
     <Compile Include="DKContentContainerView.cs" />
     <Compile Include="DKEmbedMenuSegue.cs" />
     <Compile Include="UIView_DKSideMenu.cs" />
+    <Compile Include="D.cs" />
+    <Compile Include="IDKSideMenuControllerDelegate.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources\dk-sidemenu-menu-icon.png" />
